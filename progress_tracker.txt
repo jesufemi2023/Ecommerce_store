@@ -1,0 +1,206 @@
+Authentication & Users API (Progress so far)
+1. User Registration (Pre-Registration Flow)
+
+A user is not created until their email is verified.
+Instead, they go into pre_registrations table first.
+
+Endpoint: POST /api/auth/register
+    {
+  "email": "test@example.com",
+  "full_name": "John Doe",
+  "password": "mypassword123"
+}
+
+Response (success)
+      {
+  "message": "Verification email sent to test@example.com"
+}
+
+Response (error):
+
+400: Invalid input (email, password too short, etc.)
+
+409: Email already exists
+
+👉 Frontend flow:
+
+Show form with email, full_name, password.
+
+After submit → show "Check your email to verify".
+
+
+2. Verify Email (Activate Account)
+
+User clicks verification link (with token).
+Token is stored in PreRegistration.
+
+Endpoint
+
+GET /api/auth/verify?token=<token>
+
+Response (success):
+    {
+  "message": "Email verified successfully. You can now log in."
+}
+
+Response (error)
+
+400: Invalid or expired token
+
+409: Already verified
+
+👉 Frontend flow:
+
+Redirect user to login page with success message.
+
+
+3. Login
+
+Checks email + password.
+Requires is_email_verified = true.
+
+Endpoint: POST /api/auth/login
+   Request (JSON body)
+{
+  "email": "test@example.com",
+  "password": "mypassword123",
+   "device_id":"web_chrome_xyz"
+}
+
+
+Response (success)
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "uuid-here",
+    "email": "test@example.com",
+    "full_name": "John Doe",
+    "role": "CUSTOMER"
+  }
+}
+
+Response (success)
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "uuid-here",
+    "email": "test@example.com",
+    "full_name": "John Doe",
+    "role": "CUSTOMER"
+  }
+}
+
+
+4. Refresh Token
+
+When access token expires, get a new one using refresh token.
+
+Endpoint
+
+POST /api/auth/refresh
+
+Request (JSON body)
+{
+  "refresh_token": "refresh-token-here"
+  "device_id":"web_chrome_xyz"
+}
+
+Response (success)
+{
+  "access_token": "new-access-token",
+  "refresh_token": "new-refresh-token"
+}
+
+Response (error)
+
+401: Invalid refresh token
+
+👉 Frontend flow:
+
+Run automatically in background.
+
+Update stored tokens.
+
+
+5. Protected Profile (requires JWT)
+
+Check logged-in user details.
+
+Endpoint
+
+GET /api/users/me
+Headers:
+Authorization: Bearer <access_token>
+
+Response (success)
+{
+  "id": "uuid-here",
+  "email": "test@example.com",
+  "full_name": "John Doe",
+  "role": "CUSTOMER",
+  "is_email_verified": true
+}
+
+
+👉 Frontend flow:
+
+Use this for profile page, navbar user info.
+
+6. Logout
+
+Invalidate refresh token.
+
+Endpoint
+
+POST /api/auth/logout
+
+Request (JSON body)
+{
+  "refresh_token": "refresh-token-here"
+}
+
+Response (success)
+{
+  "message": "Logged out successfully"
+}
+
+
+👉 Frontend flow:
+
+Clear tokens from storage.
+
+Redirect to login.
+
+
+6️⃣ Logout All (All Devices)
+
+Endpoint:
+POST /auth/logout-all
+
+Headers:
+
+Authorization: Bearer <access_token>
+
+
+Notes:
+
+device_id ❌ not required.
+
+Logs out from all devices for that user.
+
+Success Response:
+
+{
+  "message": "All sessions revoked"
+}
+
+
+✅ Frontend Integration Tip:
+
+Save device_id in frontend storage (could be a random string per device/browser).
+
+Always include it in Login and Refresh requests.
+
+Not needed in Register, Verify, Logout, Logout-All.
