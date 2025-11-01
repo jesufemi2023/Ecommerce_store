@@ -7,7 +7,9 @@ import helmet from 'helmet';
 import compression from 'compression';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
-
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { writeFileSync } from 'fs';
+import { dump } from 'js-yaml';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -50,6 +52,23 @@ async function bootstrap() {
   app.useGlobalFilters(new AllExceptionsFilter());
 
   app.useGlobalInterceptors(new ResponseInterceptor());
+
+  // Swagger config
+  const config = new DocumentBuilder()
+    .setTitle('E-Commerce Fashion API')
+    .setDescription('API documentation for the Fashion E-commerce backend')
+    .setVersion('1.0')
+    .addBearerAuth() // ✅ adds JWT auth header globally
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+
+  // Optional: serve it via Swagger UI at /docs
+  SwaggerModule.setup('docs', app, document);
+
+  // ✅ Export OpenAPI document to YAML file
+  const yamlData = dump(document);
+  writeFileSync('./openapi.yaml', yamlData);
 
   await app.listen(PORT);
   logger.log(`🚀 Server running at: http://localhost:${PORT}`);
