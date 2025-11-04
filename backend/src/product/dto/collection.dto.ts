@@ -1,3 +1,4 @@
+//src/product/dto/collection.dto.ts
 import {
   IsString,
   IsOptional,

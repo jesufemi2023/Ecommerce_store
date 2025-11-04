@@ -27,7 +27,12 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('Access denied. User not authenticated.');
     }
 
-    if (!requiredRoles.includes(user.role)) {
+    // ✅ Handle both string and array roles from JWT
+    const userRoles = Array.isArray(user.roles)
+      ? user.roles
+      : [user.role].filter(Boolean);
+
+    if (!requiredRoles.some((role) => userRoles.includes(role))) {
       throw new ForbiddenException(
         `Access denied. Requires role: ${requiredRoles.join(', ')}`,
       );

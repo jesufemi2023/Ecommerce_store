@@ -1,3 +1,4 @@
+//src/product/dto/category.dto.ts
 import { IsString, IsOptional, IsNotEmpty} from 'class-validator';
 
 export class CreateCategoryDto {
@@ -8,6 +9,6 @@ export class CreateCategoryDto {
 
 export class UpdateCategoryDto {
   @IsString()
-  @IsOptional()
-  name?: string;
+  @IsNotEmpty()
+  name: string;
 }

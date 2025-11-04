@@ -132,7 +132,7 @@ export class UsersService {
     }
     if (updateUserDto.email && updateUserDto.email !== user.email) {
       user.email = updateUserDto.email;
-      user.is_email_verified = false;
+      user.is_email_verified = true;
       changedFields.push('email');
     }
     if (updateUserDto.new_password) {

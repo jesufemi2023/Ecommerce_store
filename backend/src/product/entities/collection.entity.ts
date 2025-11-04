@@ -1,3 +1,5 @@
+//src/product/entities/collection.entity.ts
+
 import {
   Entity,
   PrimaryGeneratedColumn,

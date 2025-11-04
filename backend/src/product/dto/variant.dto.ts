@@ -34,6 +34,12 @@ export class CreateVariantDto {
   @IsOptional()
   @IsNumber()
   discount?: number;
+
+  
+  // 👇 Add this field to link the variant to a product
+  @IsString()
+  @IsNotEmpty()
+  productId: string;
 }
 
 export class UpdateVariantDto {
@@ -49,17 +55,17 @@ export class UpdateVariantDto {
   @IsNotEmpty()
   color: string;
 
-  @IsString()
+  @IsNumber()
   @IsNotEmpty()
-  price: string;
+  price: number;
 
   @IsNumber()
   @IsNotEmpty()
   stock: number;
 
-  @IsString()
+  @IsNumber()
   @IsOptional()
-  weight?: string;
+  weight?: number;
 
   @IsString()
   @IsOptional()

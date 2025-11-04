@@ -1,3 +1,4 @@
+//src/users/entities/pre-registration.entity.ts
 import {
   Entity,
   Column,

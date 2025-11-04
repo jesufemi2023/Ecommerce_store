@@ -325,6 +325,390 @@ paths:
         '200':
           description: ''
       tags: *ref_6
+  /api/products:
+    post:
+      operationId: ProductsController_createProduct
+      parameters: []
+      requestBody:
+        required: true
+        description: Create a product with images, variants, and collections.
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: Nike Air Max 2024
+                description:
+                  type: string
+                  example: Stylish running shoes
+                categoryId:
+                  type: string
+                  format: uuid
+                collectionIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                discount:
+                  type: number
+                  example: 10
+                variants:
+                  type: string
+                  example: >-
+                    [{"sku":"NIKE-001","size":"42","color":"Black","stock":20,"price":75000}]
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '201':
+          description: ''
+      security: &ref_7
+        - bearer: []
+      tags: &ref_8
+        - Products
+    get:
+      operationId: ProductsController_getProducts
+      parameters:
+        - name: page
+          required: false
+          in: query
+          schema:
+            example: 1
+            type: number
+        - name: limit
+          required: false
+          in: query
+          schema:
+            example: 10
+            type: number
+        - name: search
+          required: false
+          in: query
+          schema:
+            example: shoes
+            type: string
+        - name: categoryId
+          required: false
+          in: query
+          schema:
+            type: string
+        - name: collectionId
+          required: false
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      security: *ref_7
+      tags: *ref_8
+  /api/products/{id}:
+    get:
+      operationId: ProductsController_getProductById
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      security: *ref_7
+      tags: *ref_8
+    patch:
+      operationId: ProductsController_updateProduct
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        description: Update a product. You can include new images and variants.
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: Updated Nike Air Max 2025
+                description:
+                  type: string
+                  example: Improved running shoes
+                categoryId:
+                  type: string
+                  format: uuid
+                collectionIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                discount:
+                  type: number
+                  example: 15
+                variants:
+                  type: string
+                  example: >-
+                    [{"sku":"NIKE-002","size":"43","color":"White","stock":30,"price":78000}]
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '200':
+          description: ''
+      security: *ref_7
+      tags: *ref_8
+  /api/variants:
+    post:
+      operationId: VariantController_create
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVariantDto'
+      responses:
+        '201':
+          description: ''
+      tags: &ref_9
+        - Variant
+    get:
+      operationId: VariantController_getAll
+      parameters:
+        - name: productId
+          required: true
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags: *ref_9
+  /api/variants/{id}:
+    get:
+      operationId: VariantController_getOne
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags: *ref_9
+    patch:
+      operationId: VariantController_update
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateVariantDto'
+      responses:
+        '200':
+          description: ''
+      tags: *ref_9
+    delete:
+      operationId: VariantController_delete
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags: *ref_9
+  /api/categories:
+    post:
+      operationId: CategoryController_create
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCategoryDto'
+      responses:
+        '201':
+          description: ''
+      security: &ref_10
+        - bearer: []
+      tags: &ref_11
+        - Categories
+    get:
+      operationId: CategoryController_findAll
+      parameters:
+        - name: search
+          required: false
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      security: *ref_10
+      tags: *ref_11
+  /api/categories/{id}:
+    get:
+      operationId: CategoryController_findOne
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      security: *ref_10
+      tags: *ref_11
+    put:
+      operationId: CategoryController_update
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCategoryDto'
+      responses:
+        '200':
+          description: ''
+      security: *ref_10
+      tags: *ref_11
+  /api/categories/soft:
+    delete:
+      operationId: CategoryController_softDelete
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      security: *ref_10
+      tags: *ref_11
+  /api/categories/permanent:
+    delete:
+      operationId: CategoryController_hardDelete
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      security: *ref_10
+      tags: *ref_11
+  /api/collections:
+    post:
+      operationId: CollectionsController_create
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCollectionDto'
+      responses:
+        '201':
+          description: ''
+      security: &ref_12
+        - bearer: []
+      tags: &ref_13
+        - Collections
+    get:
+      operationId: CollectionsController_findAll
+      parameters:
+        - name: page
+          required: false
+          in: query
+          schema:
+            type: number
+        - name: limit
+          required: false
+          in: query
+          schema:
+            type: number
+        - name: search
+          required: false
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      security: *ref_12
+      tags: *ref_13
+  /api/collections/{id}:
+    get:
+      operationId: CollectionsController_findOne
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      security: *ref_12
+      tags: *ref_13
+    put:
+      operationId: CollectionsController_update
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCollectionDto'
+      responses:
+        '200':
+          description: ''
+      security: *ref_12
+      tags: *ref_13
+  /api/collections/soft:
+    delete:
+      operationId: CollectionsController_softDelete
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      security: *ref_12
+      tags: *ref_13
+  /api/collections/permanent:
+    delete:
+      operationId: CollectionsController_permanentDelete
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      security: *ref_12
+      tags: *ref_13
 info:
   title: E-Commerce Fashion API
   description: API documentation for the Fashion E-commerce backend
@@ -364,5 +748,23 @@ components:
       type: object
       properties: {}
     UpdateAddressDto:
+      type: object
+      properties: {}
+    CreateVariantDto:
+      type: object
+      properties: {}
+    UpdateVariantDto:
+      type: object
+      properties: {}
+    CreateCategoryDto:
+      type: object
+      properties: {}
+    UpdateCategoryDto:
+      type: object
+      properties: {}
+    CreateCollectionDto:
+      type: object
+      properties: {}
+    UpdateCollectionDto:
       type: object
       properties: {}

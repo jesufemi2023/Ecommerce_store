@@ -21,6 +21,7 @@ import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storag
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
+import { ProductsModule } from './product/product.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     MailerModule,
     HealthModule, // ← add HealthModule here
     AddressModule, // ← add AddressModule here
+    ProductsModule, // ← add ProductsModule here
     
   ],
 
