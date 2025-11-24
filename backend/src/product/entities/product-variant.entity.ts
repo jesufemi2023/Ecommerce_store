@@ -10,12 +10,14 @@ import {
 } from 'typeorm';
 import { Product } from './product.entity';
 
+
 /**
  * ProductVariant
  * - Purpose: Variant-level data (sku, size, color, stock, price)
  * - Note: Variant can also have its own discount fields (optional)
  */
 @Entity({ name: 'product_variants' })
+
 export class ProductVariant {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -44,6 +46,9 @@ export class ProductVariant {
 
   @Column({ type: 'varchar', length: 200, nullable: true })
   dimensions?: string;
+
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  name?: string;
 
   @ManyToOne(() => Product, (product) => product.variants, {
     onDelete: 'CASCADE',

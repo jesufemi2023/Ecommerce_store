@@ -22,6 +22,8 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
 import { ProductsModule } from './product/product.module';
+import { CartModule } from './cart/cart.module';
+import { OrdersModule } from './orders/orders.module';
 
 @Module({
   imports: [
@@ -66,7 +68,7 @@ import { ProductsModule } from './product/product.module';
     MailerModule,
     HealthModule, // ← add HealthModule here
     AddressModule, // ← add AddressModule here
-    ProductsModule, // ← add ProductsModule here
+    ProductsModule, CartModule, OrdersModule, // ← add ProductsModule here
     
   ],
 

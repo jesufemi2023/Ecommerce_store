@@ -406,6 +406,24 @@ paths:
           description: ''
       security: *ref_7
       tags: *ref_8
+    delete:
+      operationId: ProductsController_deleteProducts
+      parameters:
+        - name: ids
+          required: true
+          in: query
+          schema:
+            type: string
+        - name: permanently
+          required: true
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      security: *ref_7
+      tags: *ref_8
   /api/products/{id}:
     get:
       operationId: ProductsController_getProductById
@@ -428,64 +446,72 @@ paths:
           in: path
           schema:
             type: string
-      requestBody:
-        required: true
-        description: Update a product. You can include new images and variants.
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                  example: Updated Nike Air Max 2025
-                description:
-                  type: string
-                  example: Improved running shoes
-                categoryId:
-                  type: string
-                  format: uuid
-                collectionIds:
-                  type: array
-                  items:
-                    type: string
-                    format: uuid
-                discount:
-                  type: number
-                  example: 15
-                variants:
-                  type: string
-                  example: >-
-                    [{"sku":"NIKE-002","size":"43","color":"White","stock":30,"price":78000}]
-                images:
-                  type: array
-                  items:
-                    type: string
-                    format: binary
       responses:
         '200':
           description: ''
       security: *ref_7
       tags: *ref_8
-  /api/variants:
+  /api/products/{id}/variants:
+    get:
+      operationId: ProductsController_getVariants
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      security: *ref_7
+      tags: *ref_8
+  /api/products/{productId}/variants:
     post:
-      operationId: VariantController_create
-      parameters: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateVariantDto'
+      operationId: ProductsController_addVariantToProduct
+      parameters:
+        - name: productId
+          required: true
+          in: path
+          schema:
+            type: string
       responses:
         '201':
           description: ''
-      tags: &ref_9
-        - Variant
-    get:
-      operationId: VariantController_getAll
+      security: *ref_7
+      tags: *ref_8
+  /api/products/{productId}/variants/{variantId}:
+    patch:
+      operationId: ProductsController_updateProductVariant
       parameters:
         - name: productId
+          required: true
+          in: path
+          schema:
+            type: string
+        - name: variantId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      security: *ref_7
+      tags: *ref_8
+    delete:
+      operationId: ProductsController_deleteVariant
+      parameters:
+        - name: productId
+          required: true
+          in: path
+          schema:
+            type: string
+        - name: variantId
+          required: true
+          in: path
+          schema:
+            type: string
+        - name: permanently
           required: true
           in: query
           schema:
@@ -493,50 +519,8 @@ paths:
       responses:
         '200':
           description: ''
-      tags: *ref_9
-  /api/variants/{id}:
-    get:
-      operationId: VariantController_getOne
-      parameters:
-        - name: id
-          required: true
-          in: path
-          schema:
-            type: string
-      responses:
-        '200':
-          description: ''
-      tags: *ref_9
-    patch:
-      operationId: VariantController_update
-      parameters:
-        - name: id
-          required: true
-          in: path
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateVariantDto'
-      responses:
-        '200':
-          description: ''
-      tags: *ref_9
-    delete:
-      operationId: VariantController_delete
-      parameters:
-        - name: id
-          required: true
-          in: path
-          schema:
-            type: string
-      responses:
-        '200':
-          description: ''
-      tags: *ref_9
+      security: *ref_7
+      tags: *ref_8
   /api/categories:
     post:
       operationId: CategoryController_create
@@ -550,9 +534,9 @@ paths:
       responses:
         '201':
           description: ''
-      security: &ref_10
+      security: &ref_9
         - bearer: []
-      tags: &ref_11
+      tags: &ref_10
         - Categories
     get:
       operationId: CategoryController_findAll
@@ -565,8 +549,8 @@ paths:
       responses:
         '200':
           description: ''
-      security: *ref_10
-      tags: *ref_11
+      security: *ref_9
+      tags: *ref_10
   /api/categories/{id}:
     get:
       operationId: CategoryController_findOne
@@ -579,8 +563,8 @@ paths:
       responses:
         '200':
           description: ''
-      security: *ref_10
-      tags: *ref_11
+      security: *ref_9
+      tags: *ref_10
     put:
       operationId: CategoryController_update
       parameters:
@@ -598,8 +582,8 @@ paths:
       responses:
         '200':
           description: ''
-      security: *ref_10
-      tags: *ref_11
+      security: *ref_9
+      tags: *ref_10
   /api/categories/soft:
     delete:
       operationId: CategoryController_softDelete
@@ -607,8 +591,8 @@ paths:
       responses:
         '200':
           description: ''
-      security: *ref_10
-      tags: *ref_11
+      security: *ref_9
+      tags: *ref_10
   /api/categories/permanent:
     delete:
       operationId: CategoryController_hardDelete
@@ -616,8 +600,8 @@ paths:
       responses:
         '200':
           description: ''
-      security: *ref_10
-      tags: *ref_11
+      security: *ref_9
+      tags: *ref_10
   /api/collections:
     post:
       operationId: CollectionsController_create
@@ -631,9 +615,9 @@ paths:
       responses:
         '201':
           description: ''
-      security: &ref_12
+      security: &ref_11
         - bearer: []
-      tags: &ref_13
+      tags: &ref_12
         - Collections
     get:
       operationId: CollectionsController_findAll
@@ -656,8 +640,8 @@ paths:
       responses:
         '200':
           description: ''
-      security: *ref_12
-      tags: *ref_13
+      security: *ref_11
+      tags: *ref_12
   /api/collections/{id}:
     get:
       operationId: CollectionsController_findOne
@@ -670,8 +654,8 @@ paths:
       responses:
         '200':
           description: ''
-      security: *ref_12
-      tags: *ref_13
+      security: *ref_11
+      tags: *ref_12
     put:
       operationId: CollectionsController_update
       parameters:
@@ -689,8 +673,8 @@ paths:
       responses:
         '200':
           description: ''
-      security: *ref_12
-      tags: *ref_13
+      security: *ref_11
+      tags: *ref_12
   /api/collections/soft:
     delete:
       operationId: CollectionsController_softDelete
@@ -698,8 +682,8 @@ paths:
       responses:
         '200':
           description: ''
-      security: *ref_12
-      tags: *ref_13
+      security: *ref_11
+      tags: *ref_12
   /api/collections/permanent:
     delete:
       operationId: CollectionsController_permanentDelete
@@ -707,8 +691,125 @@ paths:
       responses:
         '200':
           description: ''
-      security: *ref_12
+      security: *ref_11
+      tags: *ref_12
+  /api/cart/add:
+    post:
+      operationId: CartController_addToCart
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddToCartDto'
+      responses:
+        '201':
+          description: ''
+      tags: &ref_13
+        - Cart
+  /api/cart/remove:
+    delete:
+      operationId: CartController_removeItems
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoveCartItemDto'
+      responses:
+        '200':
+          description: ''
       tags: *ref_13
+  /api/cart/clear:
+    delete:
+      operationId: CartController_clearCart
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags: *ref_13
+  /api/cart:
+    get:
+      operationId: CartController_getCart
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags: *ref_13
+  /api/orders:
+    post:
+      operationId: OrdersController_createOrder
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderDto'
+      responses:
+        '201':
+          description: ''
+      tags: &ref_14
+        - Orders
+  /api/orders/{id}:
+    get:
+      operationId: OrdersController_getOrder
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags: *ref_14
+    delete:
+      operationId: OrdersController_deleteOrder
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags: *ref_14
+  /api/orders/user/{userId}:
+    get:
+      operationId: OrdersController_getOrdersByUser
+      parameters:
+        - name: userId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags: *ref_14
+  /api/orders/{id}/status:
+    put:
+      operationId: OrdersController_updateOrderStatus
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrderStatusDto'
+      responses:
+        '200':
+          description: ''
+      tags: *ref_14
 info:
   title: E-Commerce Fashion API
   description: API documentation for the Fashion E-commerce backend
@@ -750,12 +851,6 @@ components:
     UpdateAddressDto:
       type: object
       properties: {}
-    CreateVariantDto:
-      type: object
-      properties: {}
-    UpdateVariantDto:
-      type: object
-      properties: {}
     CreateCategoryDto:
       type: object
       properties: {}
@@ -766,5 +861,17 @@ components:
       type: object
       properties: {}
     UpdateCollectionDto:
+      type: object
+      properties: {}
+    AddToCartDto:
+      type: object
+      properties: {}
+    RemoveCartItemDto:
+      type: object
+      properties: {}
+    CreateOrderDto:
+      type: object
+      properties: {}
+    UpdateOrderStatusDto:
       type: object
       properties: {}

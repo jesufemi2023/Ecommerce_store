@@ -9,7 +9,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository, ILike } from 'typeorm';
 import { Collection } from '../entities/collection.entity';
 import { Product } from '../entities/product.entity';
-import { CreateCollectionDto, UpdateCollectionDto } from '../dto/collection.dto';
+import {
+  CreateCollectionDto,
+  UpdateCollectionDto,
+} from '../dto/collection.dto';
 import { RedisCacheService } from 'src/common/cache/redis-cache.service';
 
 @Injectable()
@@ -37,12 +40,22 @@ export class CollectionsService {
     await queryRunner.startTransaction();
 
     try {
-      // Validate productIds if provided
-      const products =
-        dto.productIds && dto.productIds.length
-          ? await this.productRepo.findByIds(dto.productIds)
-          : [];
+      // ✅ Validate productIds existence first
+      let products: Product[] = [];
+      if (dto.productIds && dto.productIds.length) {
+        products = await this.productRepo.findByIds(dto.productIds);
 
+        if (products.length !== dto.productIds.length) {
+          const missingIds = dto.productIds.filter(
+            (id) => !products.some((p) => p.id === id),
+          );
+          throw new BadRequestException(
+            `Invalid product IDs: ${missingIds.join(', ')}`,
+          );
+        }
+      }
+
+      // ✅ Create collection safely
       const collection = this.collectionRepo.create({
         name: dto.name,
         description: dto.description,
@@ -52,7 +65,7 @@ export class CollectionsService {
       const saved = await queryRunner.manager.save(collection);
       await queryRunner.commitTransaction();
 
-      // Invalidate caches (collections list + product lists)
+      // ✅ Invalidate caches
       await this.redisCacheService.deleteCache('collections:list');
       await this.redisCacheService.deleteByPrefix('products:');
 
@@ -61,6 +74,17 @@ export class CollectionsService {
     } catch (error) {
       await queryRunner.rollbackTransaction();
       this.logger.error('❌ Failed to create collection', error.stack ?? error);
+
+      // 🔍 Show clearer DB-level constraint errors
+      if (
+        error.message.includes('violates foreign key constraint') ||
+        error.message.includes('products_collections')
+      ) {
+        throw new BadRequestException(
+          'One or more provided product IDs do not exist.',
+        );
+      }
+
       throw new InternalServerErrorException(
         `Failed to create collection: ${error?.message ?? error}`,
       );
@@ -68,7 +92,6 @@ export class CollectionsService {
       await queryRunner.release();
     }
   }
-
   /**
    * List collections with optional search and pagination.
    * Results are cached by query params.
@@ -99,7 +122,9 @@ export class CollectionsService {
         });
       }
 
-      qb.skip((page - 1) * limit).take(limit).orderBy('collection.name', 'ASC');
+      qb.skip((page - 1) * limit)
+        .take(limit)
+        .orderBy('collection.name', 'ASC');
 
       const [data, total] = await qb.getManyAndCount();
 
@@ -130,7 +155,8 @@ export class CollectionsService {
   async getCollectionById(id: string): Promise<Collection> {
     try {
       const cacheKey = `collection:${id}`;
-      const cached = await this.redisCacheService.getCache<Collection>(cacheKey);
+      const cached =
+        await this.redisCacheService.getCache<Collection>(cacheKey);
       if (cached) {
         this.logger.debug(`🟢 Collection ${id} fetched from cache`);
         return cached;
@@ -149,7 +175,10 @@ export class CollectionsService {
       this.logger.debug(`🟡 Collection ${id} fetched from DB and cached`);
       return collection;
     } catch (error) {
-      this.logger.error('❌ Failed to fetch collection by id', error.stack ?? error);
+      this.logger.error(
+        '❌ Failed to fetch collection by id',
+        error.stack ?? error,
+      );
       throw new InternalServerErrorException('Failed to fetch collection');
     }
   }
@@ -158,7 +187,10 @@ export class CollectionsService {
    * Update a collection (name, description, product membership).
    * Uses transaction and invalidates related caches.
    */
-  async updateCollection(id: string, dto: UpdateCollectionDto): Promise<Collection> {
+  async updateCollection(
+    id: string,
+    dto: UpdateCollectionDto,
+  ): Promise<Collection> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -204,8 +236,11 @@ export class CollectionsService {
   /**
    * Soft delete collections (accepts array of ids).
    */
-  async softDeleteCollections(ids: string[]): Promise<{ success: true; deleted: number }> {
-    if (!ids?.length) throw new BadRequestException('No collection ids provided');
+  async softDeleteCollections(
+    ids: string[],
+  ): Promise<{ success: true; deleted: number }> {
+    if (!ids?.length)
+      throw new BadRequestException('No collection ids provided');
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -217,7 +252,9 @@ export class CollectionsService {
 
       // invalidate caches
       await this.redisCacheService.deleteCache('collections:list');
-      ids.forEach((id) => this.redisCacheService.deleteCache(`collection:${id}`));
+      ids.forEach((id) =>
+        this.redisCacheService.deleteCache(`collection:${id}`),
+      );
       await this.redisCacheService.deleteByPrefix('products:');
 
       const deleted = result.affected ?? 0;
@@ -225,8 +262,13 @@ export class CollectionsService {
       return { success: true, deleted };
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      this.logger.error('❌ Failed to soft-delete collections', error.stack ?? error);
-      throw new InternalServerErrorException('Failed to soft-delete collections');
+      this.logger.error(
+        '❌ Failed to soft-delete collections',
+        error.stack ?? error,
+      );
+      throw new InternalServerErrorException(
+        'Failed to soft-delete collections',
+      );
     } finally {
       await queryRunner.release();
     }
@@ -236,8 +278,11 @@ export class CollectionsService {
    * Permanently delete collections (and don't touch products).
    * Use carefully as this removes DB rows permanently.
    */
-  async permanentDeleteCollections(ids: string[]): Promise<{ success: true; deleted: number }> {
-    if (!ids?.length) throw new BadRequestException('No collection ids provided');
+  async permanentDeleteCollections(
+    ids: string[],
+  ): Promise<{ success: true; deleted: number }> {
+    if (!ids?.length)
+      throw new BadRequestException('No collection ids provided');
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -251,7 +296,9 @@ export class CollectionsService {
       await queryRunner.commitTransaction();
 
       await this.redisCacheService.deleteCache('collections:list');
-      ids.forEach((id) => this.redisCacheService.deleteCache(`collection:${id}`));
+      ids.forEach((id) =>
+        this.redisCacheService.deleteCache(`collection:${id}`),
+      );
       await this.redisCacheService.deleteByPrefix('products:');
 
       const deleted = result.affected ?? 0;
@@ -259,8 +306,13 @@ export class CollectionsService {
       return { success: true, deleted };
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      this.logger.error('❌ Failed to permanently delete collections', error.stack ?? error);
-      throw new InternalServerErrorException('Failed to permanently delete collections');
+      this.logger.error(
+        '❌ Failed to permanently delete collections',
+        error.stack ?? error,
+      );
+      throw new InternalServerErrorException(
+        'Failed to permanently delete collections',
+      );
     } finally {
       await queryRunner.release();
     }

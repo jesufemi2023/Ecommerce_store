@@ -14,8 +14,8 @@ import { ProductsService } from './product.service';
 import { ProductsController } from './product.controller';
 
 // ✅ Variant Service & Controller
-import { VariantService } from './variants/variant.service';
-import { VariantController } from './variants/variant.controller';
+//import { VariantService } from './variants/variant.service';
+//import { VariantController } from './variants/variant.controller';
 
 // ✅ Shared Utilities
 import { ImagekitUtil } from './utils/imagekit.util';
@@ -51,19 +51,10 @@ import { CollectionModule } from './collection/collection.module';
     forwardRef(() => CollectionModule),
   ],
 
-  controllers: [ProductsController, VariantController], // ✅ added VariantController
+  controllers: [ProductsController], // ✅ added VariantController
 
-  providers: [
-    ProductsService,
-    VariantService, // ✅ added VariantService
-    ImagekitUtil,
-    RedisCacheService,
-  ],
+  providers: [ProductsService, ImagekitUtil, RedisCacheService],
 
-  exports: [
-    ProductsService,
-    VariantService, // ✅ export if other modules need it
-    TypeOrmModule,
-  ],
+  exports: [ProductsService, TypeOrmModule],
 })
 export class ProductsModule {}

@@ -17,6 +17,7 @@ import { ProductImage } from './entities/product-image.entity';
 import { CreateProductDto } from './dto/product.dto';
 import { ImagekitUtil } from './utils/imagekit.util';
 import { RedisCacheService } from 'src/common/cache/redis-cache.service';
+import { CreateVariantDto, UpdateVariantDto } from './dto/variant.dto';
 
 @Injectable()
 export class ProductsService {
@@ -40,6 +41,8 @@ export class ProductsService {
   // ===============================================
   // 🟩 CREATE PRODUCT (already implemented)
   // ===============================================
+  // src/product/product.service.ts
+  // src/product/product.service.ts
   async createProduct(
     dto: CreateProductDto,
     files: Express.Multer.File[],
@@ -51,15 +54,18 @@ export class ProductsService {
     let uploadedImages: { fileId: string }[] = [];
 
     try {
+      // 1️⃣ Validate category existence
       const category = await this.categoryRepo.findOne({
         where: { id: dto.categoryId },
       });
       if (!category) throw new NotFoundException('Category not found');
 
+      // 2️⃣ Load collections if provided
       const collections = dto.collectionIds?.length
         ? await this.collectionRepo.findByIds(dto.collectionIds)
         : [];
 
+      // 3️⃣ Create base product
       const product = this.productRepo.create({
         name: dto.name,
         description: dto.description,
@@ -69,7 +75,9 @@ export class ProductsService {
       });
 
       const savedProduct = await queryRunner.manager.save(product);
+      this.logger.log(`✅ Base product created: ${savedProduct.name}`);
 
+      // 4️⃣ Handle image uploads
       if (files?.length) {
         const uploadResults = await this.imagekitUtil.uploadMultipleImages(
           files,
@@ -87,47 +95,64 @@ export class ProductsService {
         );
 
         await queryRunner.manager.save(ProductImage, productImages);
+        this.logger.log(
+          `🖼️ Uploaded ${productImages.length} images for product`,
+        );
       }
 
+      // 5️⃣ Handle variants if provided
       if (dto.variants?.length) {
-        const variants = dto.variants.map((variant) =>
+        const variants = dto.variants.map((v) =>
           queryRunner.manager.create(ProductVariant, {
-            ...variant,
+            variantName: v.name,
+            sku: v.sku ?? undefined,
+            size: v.size ?? undefined,
+            color: v.color ?? undefined,
+            stock: v.stock ?? 0,
+            price: String(v.price), // ✅ Convert number to string
+            weight: v.weight,
+            dimensions: v.dimensions,
+            discount: v.discount ?? dto.discount ?? 0,
             product: savedProduct,
-            discount: variant.discount ?? dto.discount ?? 0,
           }),
         );
 
         await queryRunner.manager.save(ProductVariant, variants);
+        this.logger.log(`🎨 Created ${variants.length} variants for product`);
       }
 
       await queryRunner.commitTransaction();
 
+      // 6️⃣ Fetch full product with relations for response
       const fullProduct = await this.productRepo.findOne({
         where: { id: savedProduct.id },
         relations: ['variants', 'images', 'collections', 'category'],
       });
 
+      // 7️⃣ Cache invalidation
       await this.redisCacheService.deleteCache('products:list');
       if (dto.categoryId)
         await this.redisCacheService.deleteCache(
           `products:category:${dto.categoryId}`,
         );
-
       await this.redisCacheService.setCache(
         `product:${savedProduct.id}`,
         fullProduct,
         300,
       );
 
-      this.logger.log(`✅ Product created successfully: ${savedProduct.name}`);
+      this.logger.log(
+        `✅ Product creation complete and cached: ${savedProduct.name}`,
+      );
       return fullProduct!;
     } catch (error) {
       await queryRunner.rollbackTransaction();
 
+      // Cleanup uploaded images if transaction fails
       if (uploadedImages.length) {
         const fileIds = uploadedImages.map((img) => img.fileId);
         await this.imagekitUtil.deleteMultipleImages(fileIds);
+        this.logger.warn('🗑️ Rolled back uploaded images due to error');
       }
 
       this.logger.error('❌ Failed to create product', error.stack);
@@ -269,14 +294,16 @@ export class ProductsService {
     let uploadedImages: { fileId: string }[] = [];
 
     try {
-      // 1️⃣ Fetch existing product
+      // 1️⃣ Fetch existing product with all relations
       const existingProduct = await this.productRepo.findOne({
         where: { id: productId },
-        relations: ['images', 'variants', 'collections', 'category'],
+        relations: ['variants', 'images', 'collections', 'category'],
       });
       if (!existingProduct) throw new NotFoundException('Product not found');
 
-      // 2️⃣ Update base fields if provided
+      this.logger.log(`🔄 Updating product: ${existingProduct.name}`);
+
+      // 2️⃣ Update basic fields if provided
       if (dto.name) existingProduct.name = dto.name;
       if (dto.description) existingProduct.description = dto.description;
       if (dto.discount !== undefined) existingProduct.discount = dto.discount;
@@ -298,7 +325,7 @@ export class ProductsService {
         existingProduct.collections = collections;
       }
 
-      // 5️⃣ Handle new image uploads (if any)
+      // 5️⃣ Handle new image uploads
       if (files?.length) {
         const uploadResults = await this.imagekitUtil.uploadMultipleImages(
           files,
@@ -316,44 +343,56 @@ export class ProductsService {
         );
 
         await queryRunner.manager.save(ProductImage, newImages);
+        this.logger.log(
+          `🖼️ Uploaded ${newImages.length} new images for product`,
+        );
       }
 
-      // 6️⃣ Update or add variants
+      // 6️⃣ Update variants if provided
       if (dto.variants?.length) {
-        // remove old variants if not listed anymore
+        // Remove old variants
         await queryRunner.manager.delete(ProductVariant, {
           product: { id: productId },
         });
 
-        const newVariants = dto.variants.map((variant) =>
+        // Create new variants
+        const newVariants = dto.variants.map((v) =>
           queryRunner.manager.create(ProductVariant, {
-            ...variant,
+            sku: v.sku ?? undefined,
+            size: v.size ?? undefined,
+            color: v.color ?? undefined,
+            stock: v.stock ?? 0,
+            price: String(v.price), // ✅ Convert number to string
+            weight: v.weight,
+            dimensions: v.dimensions,
+            discount: v.discount ?? existingProduct.discount ?? 0,
             product: existingProduct,
-            discount: variant.discount ?? existingProduct.discount ?? 0,
           }),
         );
+
         await queryRunner.manager.save(ProductVariant, newVariants);
+        this.logger.log(
+          `🎨 Updated ${newVariants.length} variants for product`,
+        );
       }
 
-      // 7️⃣ Save main product updates
+      // 7️⃣ Save main product
       const updatedProduct = await queryRunner.manager.save(existingProduct);
       await queryRunner.commitTransaction();
 
-      // 8️⃣ Reload full product details
+      // 8️⃣ Reload full product with relations
       const fullProduct = await this.productRepo.findOne({
         where: { id: updatedProduct.id },
         relations: ['variants', 'images', 'collections', 'category'],
       });
 
-      // 9️⃣ Clear relevant caches
+      // 9️⃣ Cache invalidation & refresh
       await this.redisCacheService.deleteCache(`product:${productId}`);
       await this.redisCacheService.deleteCache('products:list');
       if (dto.categoryId)
         await this.redisCacheService.deleteCache(
           `products:category:${dto.categoryId}`,
         );
-
-      // 🔄 Re-cache updated product
       await this.redisCacheService.setCache(
         `product:${productId}`,
         fullProduct,
@@ -361,16 +400,16 @@ export class ProductsService {
       );
 
       this.logger.log(
-        `✅ Product updated successfully: ${existingProduct.name}`,
+        `✅ Product update complete and cached: ${existingProduct.name}`,
       );
       return fullProduct!;
     } catch (error) {
       await queryRunner.rollbackTransaction();
 
-      // Cleanup uploaded images if DB transaction fails
       if (uploadedImages.length) {
         const fileIds = uploadedImages.map((img) => img.fileId);
         await this.imagekitUtil.deleteMultipleImages(fileIds);
+        this.logger.warn('🗑️ Rolled back uploaded images due to error');
       }
 
       this.logger.error('❌ Failed to update product', error.stack);
@@ -382,18 +421,11 @@ export class ProductsService {
     }
   }
 
-  // ===============================================
-  // 🟥 DELETE PRODUCT (soft by default, hard if requested)
-  // ===============================================
-  /**
-   * Delete a product.
-   *
-   * @param productId - UUID of the product to delete
-   * @param permanently - if true, permanently remove product, variants and product images AND delete files from ImageKit.
-   *                      if false (default) -> soft-delete the product (keeps DB records for audit/restore).
-   */
-  async deleteProduct(
-    productId: string,
+  // ============================
+  // 🟥 BULK DELETE PRODUCTS
+  // ============================
+  async deleteProducts(
+    productIds: string[],
     permanently = false,
   ): Promise<{ success: true; message: string }> {
     const queryRunner = this.dataSource.createQueryRunner();
@@ -401,115 +433,225 @@ export class ProductsService {
     await queryRunner.startTransaction();
 
     try {
-      // 1️⃣ Load the product with relations we will need
+      for (const productId of productIds) {
+        await this.deleteProducts([productId], permanently);
+      }
+
+      await queryRunner.commitTransaction();
+      this.logger.log(
+        `🗑️ Bulk delete completed for products: ${productIds.join(', ')}`,
+      );
+
+      // Clear list cache after bulk delete
+      await this.redisCacheService.deleteByPrefix('products:');
+
+      return {
+        success: true,
+        message: `Deleted ${productIds.length} products`,
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      this.logger.error('❌ Failed to bulk delete products', error.stack);
+      throw new InternalServerErrorException(
+        error.message || 'Failed to delete products',
+      );
+    } finally {
+      await queryRunner.release();
+    }
+  }
+  
+  
+  // ---------------------- VARIANT METHODS ----------------------
+  /**
+   * Add a new variant to an existing product
+   * @param productId - UUID of the parent product
+   * @param dto - Partial<CreateVariantDto> (only price is required)
+   */
+  async addVariantToProduct(
+    productId: string,
+    variantDto: Partial<CreateVariantDto>, // all fields optional except price
+  ): Promise<ProductVariant> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // 1️⃣ Fetch the parent product
       const product = await queryRunner.manager.findOne(Product, {
         where: { id: productId },
-        relations: ['images', 'variants', 'collections', 'category'],
+        relations: ['variants'],
       });
 
       if (!product) {
-        this.logger.warn(
-          `⚠️ Attempted to delete non-existent product: ${productId}`,
-        );
+        this.logger.warn(`⚠️ Product not found: ${productId}`);
         throw new NotFoundException('Product not found');
       }
 
-      // If permanent delete is requested, prepare list of ImageKit fileIds to remove
-      const imageFileIds = (product.images || [])
-        .map((img) => img.publicId)
-        .filter(Boolean);
+      // 2️⃣ Auto-generate SKU if not provided
+      const generatedSku =
+        variantDto.sku ??
+        `${product.name.replace(/\s+/g, '-').toLowerCase()}-${Math.random()
+          .toString(36)
+          .substring(2, 8)
+          .toUpperCase()}`;
 
-      if (permanently) {
-        // 2A️⃣ Permanently remove external images first (important: if this fails, we rollback)
-        if (imageFileIds.length) {
-          try {
-            // deleteMultipleImages will log errors internally, but we want to catch failures here
-            await this.imagekitUtil.deleteMultipleImages(imageFileIds);
-            this.logger.log(
-              `🗑️ Deleted ${imageFileIds.length} ImageKit files for product ${productId}`,
-            );
-          } catch (err) {
-            this.logger.error(
-              `❌ Failed to delete image files for product ${productId}`,
-              err?.stack ?? err,
-            );
-            throw new InternalServerErrorException(
-              'Failed to delete product images from storage',
-            );
-          }
-        }
+      // 2️⃣ Create the new variant safely
+      const variant = queryRunner.manager.create(ProductVariant, {
+        product,
+        discount: variantDto.discount ?? product.discount ?? 0,
+        stock: variantDto.stock ?? 0,
+        price: variantDto.price?.toString() ?? '0', // convert number to string
+        sku: generatedSku,
+        size: variantDto.size,
+        color: variantDto.color,
+        weight: variantDto.weight,
+        dimensions: variantDto.dimensions,
+      });
 
-        // 2B️⃣ Permanently delete ProductImage rows
-        if ((product.images || []).length) {
-          await queryRunner.manager.delete(ProductImage, {
-            product: { id: productId },
-          });
-        }
-
-        // 2C️⃣ Permanently delete variants
-        await queryRunner.manager.delete(ProductVariant, {
-          product: { id: productId },
-        });
-
-        // 2D️⃣ Permanently delete product row
-        await queryRunner.manager.delete(Product, { id: productId });
-
-        // Commit transaction
-        await queryRunner.commitTransaction();
-
-        // 3️⃣ Invalidate caches after successful permanent deletion
-        await this.redisCacheService.deleteCache(`product:${productId}`);
-        await this.redisCacheService.deleteByPrefix('products:');
-        this.logger.log(
-          `✅ Permanently deleted product ${productId} and invalidated cache`,
-        );
-        return { success: true, message: 'Product permanently deleted' };
-      } else {
-        // 2E️⃣ Soft-delete: mark product as deleted (deleted_at is handled by TypeORM DeleteDateColumn)
-        // Soft delete the product; this will NOT remove images from ImageKit
-        await queryRunner.manager.softDelete(Product, { id: productId });
-
-        // Soft-delete variants as well (if you maintain audit/history)
-        await queryRunner.manager.softDelete(ProductVariant, {
-          product: { id: productId },
-        });
-
-        await queryRunner.commitTransaction();
-
-        // 3️⃣ Invalidate caches so listings don't show the soft-deleted product
-        await this.redisCacheService.deleteCache(`product:${productId}`);
-        await this.redisCacheService.deleteByPrefix('products:');
-
-        this.logger.log(
-          `🟠 Soft-deleted product ${productId} and invalidated cache`,
-        );
-        return { success: true, message: 'Product soft-deleted' };
-      }
-    } catch (error) {
-      // Rollback DB changes on any failure
-      try {
-        await queryRunner.rollbackTransaction();
-      } catch (rbErr) {
-        this.logger.error(
-          '❌ Failed to rollback transaction',
-          rbErr?.stack ?? rbErr,
-        );
-      }
-
-      this.logger.error(
-        `❌ Failed to delete product ${productId}`,
-        error.stack ?? error,
+      // 3️⃣ Save the variant
+      const savedVariant = await queryRunner.manager.save(
+        ProductVariant,
+        variant,
       );
-      // Re-throw sensible errors for controller to surface
-      if (error instanceof NotFoundException) throw error;
-      if (error instanceof InternalServerErrorException) throw error;
+
+      await queryRunner.commitTransaction();
+      this.logger.log(
+        `✅ Variant added to product ${product.name} (SKU: ${variant.sku})`,
+      );
+
+      return savedVariant;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      this.logger.error(
+        `❌ Failed to add variant to product ${productId}`,
+        error.stack,
+      );
       throw new InternalServerErrorException(
-        `Failed to delete product: ${error?.message ?? String(error)}`,
+        `Failed to add variant: ${error.message}`,
       );
     } finally {
       await queryRunner.release();
     }
   }
 
-  
+  /**
+   * Update a variant (all fields optional)
+   */
+  async updateProductVariant(
+    productId: string,
+    variantId: string,
+    dto: Partial<UpdateVariantDto>,
+  ): Promise<ProductVariant> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const variant = await queryRunner.manager.findOne(ProductVariant, {
+        where: { id: variantId },
+        relations: ['product'],
+      });
+      if (!variant || variant.product.id !== productId)
+        throw new NotFoundException('Variant not found for this product');
+
+      // Only update provided fields
+      Object.assign(variant, dto);
+
+      const updatedVariant = await queryRunner.manager.save(variant);
+      await queryRunner.commitTransaction();
+
+      this.logger.log(
+        `✅ Variant ${variantId} updated for product ${productId}`,
+      );
+
+      // Invalidate caches
+      await this.redisCacheService.deleteCache(`product:${productId}`);
+      await this.redisCacheService.deleteCache('products:list');
+
+      return updatedVariant;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      this.logger.error(
+        `❌ Failed to update variant ${variantId}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        error.message || 'Failed to update variant',
+      );
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  /**
+   * Get all variants for a product
+   */
+  async getVariantsByProduct(productId: string): Promise<ProductVariant[]> {
+    const variants = await this.productRepo
+      .createQueryBuilder('product')
+      .leftJoinAndSelect('product.variants', 'variants')
+      .where('product.id = :productId', { productId })
+      .getOne();
+
+    if (!variants) throw new NotFoundException('Product not found');
+    return variants.variants;
+  }
+
+  /**
+   * Get a single variant by ID under a product
+   */
+  async getVariantById(
+    productId: string,
+    variantId: string,
+  ): Promise<ProductVariant> {
+    const variant = await this.productRepo
+      .createQueryBuilder('product')
+      .leftJoinAndSelect('product.variants', 'variants')
+      .where('product.id = :productId', { productId })
+      .andWhere('variants.id = :variantId', { variantId })
+      .getOne();
+
+    if (!variant || !variant.variants.length)
+      throw new NotFoundException('Variant not found');
+    return variant.variants[0];
+  }
+
+  /**
+   * Delete a variant (soft delete by default)
+   */
+ // ============================
+// 🟥 BULK DELETE VARIANTS
+// ============================
+async deleteProductVariants(
+  productId: string,
+  variantIds: string[],
+  permanently = false,
+): Promise<{ success: true; message: string }> {
+  const queryRunner = this.dataSource.createQueryRunner();
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
+
+  try {
+    for (const variantId of variantIds) {
+      await this.deleteProductVariants(productId, [variantId], permanently);
+    }
+
+    await queryRunner.commitTransaction();
+    this.logger.log(
+      `🗑️ Bulk delete completed for variants: ${variantIds.join(', ')} under product ${productId}`,
+    );
+
+    // Invalidate caches after bulk delete
+    await this.redisCacheService.deleteCache(`product:${productId}`);
+    await this.redisCacheService.deleteCache('products:list');
+
+    return { success: true, message: `Deleted ${variantIds.length} variants` };
+  } catch (error) {
+    await queryRunner.rollbackTransaction();
+    this.logger.error('❌ Failed to bulk delete variants', error.stack);
+    throw new InternalServerErrorException(error.message || 'Failed to delete variants');
+  } finally {
+    await queryRunner.release();
+  }
+}
 }

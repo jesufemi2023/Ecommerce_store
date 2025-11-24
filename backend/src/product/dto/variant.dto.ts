@@ -1,75 +1,79 @@
 // src/product/dto/variant.dto.ts
-
-import { IsString, IsNotEmpty, IsNumber, IsOptional } from 'class-validator';
+import { IsNumber, IsOptional, IsString, IsNotEmpty } from 'class-validator';
 
 export class CreateVariantDto {
-  @IsString()
-  @IsNotEmpty()
-  sku: string;
-
-  @IsString()
-  @IsNotEmpty()
-  size: string;
-
-  @IsString()
-  @IsNotEmpty()
-  color: string;
-
-  @IsString()
-  @IsNotEmpty()
-  price: string;
-
   @IsNumber()
   @IsNotEmpty()
-  stock: number;
+  price: number; // ✅ required
 
-  @IsString()
   @IsOptional()
+  @IsString()
+  sku?: string;
+
+  @IsOptional()
+  @IsString()
+  size?: string;
+
+  @IsOptional()
+  @IsString()
+  color?: string;
+
+  @IsOptional()
+  @IsNumber()
+  stock?: number;
+
+  @IsOptional()
+  @IsString()
   weight?: string;
 
-  @IsString()
   @IsOptional()
+  @IsString()
   dimensions?: string;
+
+  @IsOptional()
+  @IsString()
+  name?: string;
+
 
   @IsOptional()
   @IsNumber()
   discount?: number;
-
-  
-  // 👇 Add this field to link the variant to a product
-  @IsString()
-  @IsNotEmpty()
-  productId: string;
 }
 
 export class UpdateVariantDto {
-  @IsString()
-  @IsNotEmpty()
-  sku: string;
-
-  @IsString()
-  @IsNotEmpty()
-  size: string;
-
-  @IsString()
-  @IsNotEmpty()
-  color: string;
-
-  @IsNumber()
-  @IsNotEmpty()
-  price: number;
-
-  @IsNumber()
-  @IsNotEmpty()
-  stock: number;
-
-  @IsNumber()
   @IsOptional()
-  weight?: number;
+  @IsNumber()
+  @IsNotEmpty()
+  price: number; // ✅ required
 
-  @IsString()
+  
   @IsOptional()
+  @IsString()
+  sku?: string;
+
+  @IsOptional()
+  @IsString()
+  size?: string;
+
+  @IsOptional()
+  @IsString()
+  color?: string;
+
+  @IsOptional()
+  @IsNumber()
+  stock?: number;
+
+  @IsOptional()
+  @IsString()
+  weight?: string;
+
+  @IsOptional()
+  @IsString()
   dimensions?: string;
+
+  @IsOptional()
+  @IsString()
+  variantName?: string;
 
   @IsOptional()
   @IsNumber()

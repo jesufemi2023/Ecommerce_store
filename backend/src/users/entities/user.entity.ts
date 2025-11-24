@@ -11,6 +11,8 @@ import {
 } from 'typeorm';
 import { AuditLog } from '../../audit/entities/audit-log.entity';
 import { Address } from '../../addresses/entities/address.entity';
+import { Cart } from 'src/cart/entities/cart.entity';
+import { Order } from 'src/orders/entities/order.entity';
 
 export enum AuthProvider {
   LOCAL = 'LOCAL',
@@ -78,10 +80,13 @@ export class User {
   @Column({ nullable: true })
   pending_email?: string;
 
-
   /** Relation: A user can have multiple addresses */
   @OneToMany(() => Address, (address) => address.user)
   addresses: Address[];
+
+  // inside User class:
+  @OneToMany(() => Cart, (cart) => cart.user)
+  carts: Cart[];
 
   /** Relation: A user can have multiple orders 
   @OneToMany(() => Order, (order) => order.user)
@@ -90,6 +95,9 @@ export class User {
   /** Relation: A user can have multiple audit logs */
   @OneToMany(() => AuditLog, (log) => log.user)
   auditLogs: AuditLog[];
+
+  @OneToMany(() => Order, (order) => order.user)
+  orders: Order[];
 
   @DeleteDateColumn({ nullable: true })
   deleted_at?: Date;
