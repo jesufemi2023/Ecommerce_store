@@ -11,12 +11,14 @@ import { ProductVariant } from 'src/product/entities/product-variant.entity';
 import { RedisCacheService } from 'src/common/cache/redis-cache.service';
 import { AuditService } from 'src/audit/audit.service';
 import { BullModule } from '@nestjs/bull';
+import { CartModule } from 'src/cart/cart.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Order, OrderItem, User, Address, ProductVariant]),
+    CartModule,
     BullModule.registerQueue({
-      name: 'audit', // must match @InjectQueue('audit') in AuditService
+      name: 'audit',
     }),
   ],
   controllers: [OrdersController],

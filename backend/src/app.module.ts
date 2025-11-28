@@ -25,6 +25,7 @@ import { ProductsModule } from './product/product.module';
 import { CartModule } from './cart/cart.module';
 import { OrdersModule } from './orders/orders.module';
 
+import { PaymentModule } from './payment/payment.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -69,7 +70,7 @@ import { OrdersModule } from './orders/orders.module';
     HealthModule, // ← add HealthModule here
     AddressModule, // ← add AddressModule here
     ProductsModule, CartModule, OrdersModule, // ← add ProductsModule here
-    
+    PaymentModule, // ← add PaymentModule here
   ],
 
    // ensure Reflector is available

@@ -11,9 +11,14 @@ import { AuditModule } from 'src/audit/audit.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Cart, CartItem, ProductVariant]),
-    AuditModule, // ✅ import here
+    AuditModule,
   ],
   providers: [CartService, RedisCacheService],
   controllers: [CartController],
+  exports: [
+    CartService,
+    RedisCacheService,
+    TypeOrmModule, // ✅ Export repositories so other modules (OrdersModule) can inject them
+  ],
 })
 export class CartModule {}

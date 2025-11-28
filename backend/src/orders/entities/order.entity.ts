@@ -1,5 +1,4 @@
-// order.entity.ts
-
+// src/orders/entities/order.entity.ts
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -19,37 +18,34 @@ export class Order {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  // 👤 The user who placed the order (nullable if guest checkout allowed)
+  // 👤 User placing the order
   @ManyToOne(() => User, (user) => user.orders, { nullable: true })
   @JoinColumn({ name: 'user_id' })
   user?: User;
 
-  // 📦 One order has many order items
+  // 🧾 Order Items
   @OneToMany(() => OrderItem, (item) => item.order, { cascade: true })
   items: OrderItem[];
 
-  // 🏠 Shipping address (snapshot at time of order)
+  // 📦 Shipping address snapshot
   @ManyToOne(() => Address, { eager: true, nullable: true })
   @JoinColumn({ name: 'shipping_address_id' })
   shippingAddress?: Address;
 
-  // 💰 Subtotal before discounts and fees
+  // 💰 Totals
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   subtotal: number;
 
-  // 🚚 Shipping fee snapshot
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   shippingFee: number;
 
-  // 🎟️ Discount applied at order level (promo code, etc.)
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   discount: number;
 
-  // 💳 Final total amount (subtotal + shipping - discount)
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   total: number;
 
-  // 📦 Order status
+  // 📦 Order status machine
   @Column({
     type: 'enum',
     enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
@@ -57,7 +53,7 @@ export class Order {
   })
   status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
 
-  // 💵 Payment status
+  // 💳 Payment lifecycle
   @Column({
     type: 'enum',
     enum: ['unpaid', 'paid', 'refunded'],
@@ -65,11 +61,11 @@ export class Order {
   })
   paymentStatus: 'unpaid' | 'paid' | 'refunded';
 
-  // 🧾 Payment reference or transaction ID (from Paystack/Flutterwave/etc.)
+  // 🧾 Paystack/Flutterwave transaction reference
   @Column({ nullable: true })
   paymentReference?: string;
 
-  // 📅 Audit timestamps
+  // 🕒 Metadata
   @CreateDateColumn()
   createdAt: Date;
 

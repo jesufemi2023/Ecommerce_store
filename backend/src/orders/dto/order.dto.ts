@@ -56,11 +56,6 @@ export class CreateOrderDto {
   @IsUUID()
   userId?: string;
 
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => OrderItemDto)
-  items: OrderItemDto[];
-
   @IsUUID()
   @IsOptional()
   shippingAddressId?: string;
@@ -97,11 +92,6 @@ export class CreateOrderDto {
   @IsOptional()
   giftWrap?: boolean;
 
-  // ✅ Optional dynamic shipping calculation
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  dynamicShippingFee?: number;
 }
 
 /**

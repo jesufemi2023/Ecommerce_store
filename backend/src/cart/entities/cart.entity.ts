@@ -79,4 +79,8 @@ export class Cart {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @Column({ default: false })
+  isLocked: boolean;
+
 }

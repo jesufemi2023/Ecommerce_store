@@ -25,11 +25,15 @@ import { ProductVariant } from 'src/product/entities/product-variant.entity';
 import { RedisCacheService } from 'src/common/cache/redis-cache.service';
 import { AuditService } from 'src/audit/audit.service';
 
+// already present imports...
+import { Cart } from 'src/cart/entities/cart.entity';
+import { CartItem } from 'src/cart/entities/cart-item.entity';
+import { CartStatus } from 'src/cart/entities/cart.entity';
+
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
-  private readonly SHIPPING_BASE_RATE = 1000;
-
+  private readonly SHIPPING_BASE_RATE = 0.1;
   constructor(
     @InjectRepository(Order) private readonly orderRepo: Repository<Order>,
     @InjectRepository(OrderItem)
@@ -39,6 +43,7 @@ export class OrdersService {
     private readonly addressRepo: Repository<Address>,
     @InjectRepository(ProductVariant)
     private readonly variantRepo: Repository<ProductVariant>,
+    @InjectRepository(Cart) private readonly cartRepo: Repository<Cart>, // <-- added
     private readonly redisCache: RedisCacheService,
     private readonly auditService: AuditService,
     private readonly dataSource: DataSource,
@@ -56,110 +61,144 @@ export class OrdersService {
     );
 
     let shippingFee = totalWeight * baseRate;
-    if (subtotal >= 50000) shippingFee = 0;
+    if (subtotal <= 10000) shippingFee = 0;
     else if (subtotal >= 30000) shippingFee *= 0.5;
 
     return parseFloat(shippingFee.toFixed(2));
   }
-
-  // 🛒 Create new order
+  // 🛒 Create new order (cart-driven only — frontend must not send items)
   async createOrder(
     createOrderDto: CreateOrderDto,
     ip: string,
     userAgent: string,
   ) {
+    if (!createOrderDto.userId) {
+      throw new BadRequestException(
+        'userId is required for checkout. Guest checkout requires a separate flow.',
+      );
+    }
+
     try {
       const result = await this.dataSource.transaction(async (manager) => {
         const userRepo = manager.getRepository(User);
         const addressRepo = manager.getRepository(Address);
         const orderRepo = manager.getRepository(Order);
         const orderItemRepo = manager.getRepository(OrderItem);
+        const cartRepo = manager.getRepository(Cart);
+        const variantRepo = manager.getRepository(ProductVariant);
 
-        // 1️⃣ Validate User
-        let user: User | undefined;
-        if (createOrderDto.userId) {
-          user =
-            (await userRepo.findOne({
-              where: { id: createOrderDto.userId },
-            })) ?? undefined;
-          if (!user)
-            throw new NotFoundException(
-              `User ${createOrderDto.userId} not found`,
+        const user = await userRepo.findOne({
+          where: { id: createOrderDto.userId },
+        });
+        if (!user)
+          throw new NotFoundException(
+            `User ${createOrderDto.userId} not found`,
+          );
+
+        const cart = await cartRepo.findOne({
+          where: { user: { id: user.id }, status: CartStatus.ACTIVE },
+          relations: [
+            'items',
+            'items.variant',
+            'items.variant.product',
+            'items.variant.product.images',
+            'items.variant.product.category',
+          ],
+        });
+
+        if (!cart)
+          throw new NotFoundException('Active cart not found for user');
+        if (!cart.items?.length) throw new BadRequestException('Cart is empty');
+
+        const orderItems: OrderItem[] = [];
+
+        for (const ci of cart.items) {
+          if (!ci.variant) {
+            this.logger.warn(`CartItem ${ci.id} has no variant, skipping`);
+            continue;
+          }
+
+          const lockedVariant = await variantRepo
+            .createQueryBuilder('v')
+            .setLock('pessimistic_write')
+            .where('v.id = :id', { id: ci.variant.id })
+            .getOne();
+
+          if (!lockedVariant || lockedVariant.stock < ci.quantity) {
+            throw new BadRequestException(
+              `Variant ${ci.variant.id} is out of stock`,
             );
+          }
+
+          const product = ci.variant.product;
+          const productImage =
+            product?.images?.find((img: any) => img.isPrimary)?.imageUrl ??
+            product?.images?.[0]?.imageUrl ??
+            null;
+
+          const orderItem = orderItemRepo.create({
+            productVariant: { id: ci.variant.id } as any,
+            productName: product?.name ?? ci.productName ?? 'Unknown Product',
+            variantName: ci.variant.name ?? ci.variantLabel ?? '',
+            sku: ci.variant.sku ?? null,
+            productImage,
+            categoryName: product?.category?.name ?? null,
+            unitPrice: Number(ci.unitPrice),
+            discountPerItem: 0,
+            quantity: ci.quantity,
+            weight: Number(ci.variant.weight ?? 1),
+            totalPrice: Number(ci.totalPrice),
+          });
+
+          orderItems.push(orderItem);
         }
 
-        // 2️⃣ Validate Shipping Address
-        let shippingAddress: Address | undefined;
-        if (createOrderDto.shippingAddressId) {
-          shippingAddress =
-            (await addressRepo.findOne({
-              where: { id: createOrderDto.shippingAddressId },
-            })) ?? undefined;
-          if (!shippingAddress)
-            throw new NotFoundException(
-              `Address ${createOrderDto.shippingAddressId} not found`,
-            );
-        }
+        if (!orderItems.length)
+          throw new BadRequestException('No valid order items found');
 
-        // 3️⃣ Prepare order items
-        const items = createOrderDto.items.map((itemDto) =>
-          orderItemRepo.create({
-            ...(itemDto.productVariantId
-              ? {
-                  productVariant: {
-                    id: itemDto.productVariantId,
-                  } as ProductVariant,
-                }
-              : {}),
-            productName: itemDto.productName,
-            variantName: itemDto.variantName,
-            unitPrice: itemDto.unitPrice,
-            discountPerItem: itemDto.discountPerItem,
-            quantity: itemDto.quantity,
-            totalPrice:
-              itemDto.totalPrice ??
-              (itemDto.unitPrice - itemDto.discountPerItem) * itemDto.quantity,
-            weight: itemDto.weight ?? 1,
-          }),
-        );
-
-        // 4️⃣ Compute totals
         const subtotal =
-          createOrderDto.subtotal ??
-          items.reduce((sum, i) => sum + Number(i.totalPrice), 0);
+          Number(cart.totalAmount) ||
+          orderItems.reduce((sum, it) => sum + Number(it.totalPrice), 0);
 
         const shippingFee =
           createOrderDto.shippingFee ??
-          this.calculateShippingFee(subtotal, createOrderDto.items);
-
+          this.calculateShippingFee(subtotal, orderItems);
         const discount = createOrderDto.discount ?? 0;
         const total = subtotal + shippingFee - discount;
 
-        // 5️⃣ Save order
         const order = orderRepo.create({
           user,
-          shippingAddress,
-          items,
+          shippingAddress: createOrderDto.shippingAddressId
+            ? ({ id: createOrderDto.shippingAddressId } as Address)
+            : undefined,
+          items: orderItems,
           subtotal,
           shippingFee,
           discount,
           total,
           status: 'pending',
           paymentStatus: 'unpaid',
-          paymentReference: createOrderDto.paymentReference,
         });
 
         const savedOrder = await orderRepo.save(order);
+
+        if (cart.isLocked === false) {
+          cart.isLocked = true;
+          await cartRepo.save(cart);
+        }
 
         return plainToInstance(OrderResponseDto, savedOrder, {
           excludeExtraneousValues: true,
         });
       });
 
-      // Post-commit side effects
+      // Post-transaction cache and audit
       await this.redisCache.setCache(`order:${result.id}`, result);
-      if (result.user?.id)
+
+      if (result.user?.id) {
         await this.redisCache.deleteByPrefix(`user_orders:${result.user.id}`);
+        await this.redisCache.deleteCache(`cart:user:${result.user.id}`);
+      }
 
       await this.auditService.enqueueLog({
         action: 'CREATE_ORDER',
@@ -170,13 +209,24 @@ export class OrdersService {
       });
 
       this.logger.log(`✅ Order ${result.id} created successfully.`);
+
       return {
         success: true,
-        message: 'Order created successfully',
+        message: 'Order created successfully. Proceed to payment.',
         data: result,
       };
     } catch (error) {
-      this.logger.error(`❌ Order creation failed: ${error.message}`);
+      this.logger.error(
+        `❌ Order creation failed: ${error.message}`,
+        error.stack,
+      );
+
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      )
+        throw error;
+
       throw new InternalServerErrorException(
         'Order creation failed. Please try again later.',
       );
@@ -206,7 +256,7 @@ export class OrdersService {
       message: 'Order fetched successfully',
       data: dto,
     };
-  } 
+  }
 
   // 📦 Get all orders for a user
   async getOrdersByUser(userId: string) {
@@ -312,5 +362,62 @@ export class OrdersService {
         'Failed to delete order. Please try again later.',
       );
     }
+  }
+  async markOrderAsPaid(
+    orderId: string,
+    paymentReference: string,
+    amount: number,
+    ip: string,
+    userAgent: string,
+  ) {
+    // 1️⃣ Fetch the order
+    const order = await this.orderRepo.findOne({
+      where: { id: orderId },
+      relations: ['user'], // Ensure user relation is loaded for audit/cache
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order ${orderId} not found`);
+    }
+
+    // 2️⃣ Validate amount (Paystack/Flutterwave amount comes in kobo)
+    if (order.total * 100 !== amount) {
+      throw new BadRequestException(
+        `Amount mismatch for order ${orderId}. Expected ${order.total * 100} but got ${amount}`,
+      );
+    }
+
+    // 3️⃣ Mark order as paid
+    order.paymentStatus = 'paid';
+    order.status = 'processing'; // You may adjust based on workflow
+    order.paymentReference = paymentReference;
+
+    const savedOrder = await this.orderRepo.save(order);
+
+    // 4️⃣ Update caches
+    await this.redisCache.deleteCache(`order:${orderId}`);
+    if (order.user?.id) {
+      await this.redisCache.deleteByPrefix(`user_orders:${order.user.id}`);
+    }
+
+    // 5️⃣ Audit trail
+    await this.auditService.enqueueLog({
+      action: 'PAYMENT_CONFIRMED',
+      userId: order.user?.id,
+      ip,
+      userAgent,
+      metadata: { orderId, paymentReference, amount },
+    });
+
+    return savedOrder;
+  }
+
+  async getOrderEntity(orderId: string) {
+    const order = await this.orderRepo.findOne({
+      where: { id: orderId },
+      relations: ['user', 'items', 'shippingAddress'],
+    });
+    if (!order) return null; // PaymentService will handle NotFound
+    return order;
   }
 }

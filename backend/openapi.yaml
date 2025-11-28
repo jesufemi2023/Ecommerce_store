@@ -810,6 +810,41 @@ paths:
         '200':
           description: ''
       tags: *ref_14
+  /api/payment/initialize:
+    post:
+      operationId: PaymentController_initialize
+      parameters: []
+      responses:
+        '201':
+          description: ''
+      tags: &ref_15
+        - Payment
+  /api/payment/verify:
+    get:
+      operationId: PaymentController_verify
+      parameters:
+        - name: reference
+          required: true
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags: *ref_15
+  /api/payment/webhook:
+    post:
+      operationId: PaymentController_webhook
+      parameters:
+        - name: x-paystack-signature
+          required: true
+          in: header
+          schema:
+            type: string
+      responses:
+        '201':
+          description: ''
+      tags: *ref_15
 info:
   title: E-Commerce Fashion API
   description: API documentation for the Fashion E-commerce backend

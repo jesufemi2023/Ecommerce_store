@@ -17,7 +17,7 @@ import type { Request } from 'express';
 import { OrdersResponseInterceptor } from './interceptors/orders-response.interceptor';
 import { UseInterceptors } from '@nestjs/common';
 
-@UseInterceptors(OrdersResponseInterceptor) // ✅ Overrides global interceptor
+@UseInterceptors(OrdersResponseInterceptor)
 @Controller('orders')
 export class OrdersController {
   private readonly logger = new Logger(OrdersController.name);
@@ -26,7 +26,6 @@ export class OrdersController {
 
   /**
    * ✅ Create a new order
-   * Guest checkout supported if userId not provided
    */
   @Post()
   async createOrder(

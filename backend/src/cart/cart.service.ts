@@ -153,69 +153,70 @@ export class CartService {
    * ❌ Remove one or more cart items by their IDs.
    * Keeps empty carts ACTIVE and recalculates totals.
    */
- async removeItemsFromCart(
-  user: User,
-  dto: RemoveCartItemDto,
-  ip?: string,
-  userAgent?: string,
-): Promise<Cart> {
-  const cacheKey = `cart:user:${user.id}`;
-  this.logger.log(
-    `Removing ${dto.cartItemId.length} item(s) from user ${user.id}'s cart`,
-  );
+  async removeItemsFromCart(
+    user: User,
+    dto: RemoveCartItemDto,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<Cart> {
+    const cacheKey = `cart:user:${user.id}`;
+    this.logger.log(
+      `Removing ${dto.cartItemId.length} item(s) from user ${user.id}'s cart`,
+    );
 
-  const cart = await this.cartRepo.findOne({
-    where: { user: { id: user.id }, status: CartStatus.ACTIVE },
-    relations: ['items', 'items.variant', 'items.variant.product'],
-  });
+    const cart = await this.cartRepo.findOne({
+      where: { user: { id: user.id }, status: CartStatus.ACTIVE },
+      relations: ['items', 'items.variant', 'items.variant.product'],
+    });
 
-  if (!cart) throw new NotFoundException('Active cart not found');
+    if (!cart) throw new NotFoundException('Active cart not found');
 
-  // 1️⃣ Ensure valid items exist
-  const itemsToRemove = cart.items.filter((i) =>
-    dto.cartItemId.includes(i.id),
-  );
-  if (itemsToRemove.length === 0)
-    throw new BadRequestException('No valid cart items found to remove');
+    // 1️⃣ Ensure valid items exist
+    const itemsToRemove = cart.items.filter((i) =>
+      dto.cartItemId.includes(i.id),
+    );
+    if (itemsToRemove.length === 0)
+      throw new BadRequestException('No valid cart items found to remove');
 
-  // 2️⃣ Delete items directly via repository
-  await this.cartItemRepo.delete(dto.cartItemId);
+    // 2️⃣ Delete items directly via repository
+    await this.cartItemRepo.delete(dto.cartItemId);
 
-  // 3️⃣ Reload the updated cart
-  const updatedCart = await this.cartRepo.findOne({
-    where: { id: cart.id },
-    relations: ['items', 'items.variant', 'items.variant.product'],
-  });
+    // 3️⃣ Reload the updated cart
+    const updatedCart = await this.cartRepo.findOne({
+      where: { id: cart.id },
+      relations: ['items', 'items.variant', 'items.variant.product'],
+    });
 
-  if (!updatedCart) throw new NotFoundException('Cart not found after removal');
+    if (!updatedCart)
+      throw new NotFoundException('Cart not found after removal');
 
-  // 4️⃣ Recalculate totals
-  this.recalcCart(updatedCart);
-  await this.cartRepo.save(updatedCart);
+    // 4️⃣ Recalculate totals
+    this.recalcCart(updatedCart);
+    await this.cartRepo.save(updatedCart);
 
-  // 5️⃣ Update cache
-  await this.cacheService.deleteCache(cacheKey);
-  await this.cacheService.setCache(cacheKey, updatedCart, 300);
+    // 5️⃣ Update cache
+    await this.cacheService.deleteCache(cacheKey);
+    await this.cacheService.setCache(cacheKey, updatedCart, 300);
 
-  // 6️⃣ Audit log
-  await this.auditService.enqueueLog({
-    action: AuditAction.CART_REMOVE_ITEM,
-    userId: user.id,
-    ip,
-    userAgent,
-    metadata: {
-      removedItemIds: dto.cartItemId,
-      remainingItems: updatedCart.totalItems,
-      totalAmount: updatedCart.totalAmount,
-    },
-  });
+    // 6️⃣ Audit log
+    await this.auditService.enqueueLog({
+      action: AuditAction.CART_REMOVE_ITEM,
+      userId: user.id,
+      ip,
+      userAgent,
+      metadata: {
+        removedItemIds: dto.cartItemId,
+        remainingItems: updatedCart.totalItems,
+        totalAmount: updatedCart.totalAmount,
+      },
+    });
 
-  this.logger.log(
-    `Removed ${itemsToRemove.length} item(s) from cart ${cart.id}`,
-  );
+    this.logger.log(
+      `Removed ${itemsToRemove.length} item(s) from cart ${cart.id}`,
+    );
 
-  return updatedCart;
-}
+    return updatedCart;
+  }
 
   /**
    * 🧾 Fetch user's active cart (from cache or DB)

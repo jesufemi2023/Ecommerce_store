@@ -1,5 +1,4 @@
-// order-item.entity.ts
-
+//src/orders/entities/order-item.entity.ts
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -20,18 +19,31 @@ export class OrderItem {
   @JoinColumn({ name: 'order_id' })
   order: Order;
 
-  // 📦 Product variant snapshot (nullable to preserve history if product deleted)
+  // 📦 Product variant relation (kept nullable in case deleted from system later)
   @ManyToOne(() => ProductVariant, { eager: true, nullable: true })
   @JoinColumn({ name: 'product_variant_id' })
   productVariant?: ProductVariant;
 
-  // 🧾 Snapshot fields (so order remains valid even if product changes)
+  // 🧾 Snapshot Fields (Immutable — taken at order time)
   @Column()
   productName: string;
 
   @Column()
   variantName: string;
 
+  @Column({ nullable: true })
+  sku?: string;
+
+  @Column({ nullable: true })
+  productImage?: string;
+
+  @Column({ nullable: true })
+  categoryName?: string;
+
+  @Column({ nullable: true })
+  brandName?: string;
+
+  // 💵 Pricing snapshot
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   unitPrice: number;
 
@@ -41,9 +53,11 @@ export class OrderItem {
   @Column({ type: 'int' })
   quantity: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, default: 25.0 })
+  // ⚖ Snapshot weight (can be used for shipping)
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 1.0 })
   weight: number;
 
+  // 🧮 Final item cost = (unitPrice - discountPerItem) * quantity
   @Column({ type: 'decimal', precision: 10, scale: 2 })
-  totalPrice: number; // (unitPrice - discountPerItem) * quantity
+  totalPrice: number;
 }
