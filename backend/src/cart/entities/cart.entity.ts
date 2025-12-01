@@ -83,4 +83,7 @@ export class Cart {
   @Column({ default: false })
   isLocked: boolean;
 
+  @Column({ nullable: true })
+  amount?: string;
+
 }
