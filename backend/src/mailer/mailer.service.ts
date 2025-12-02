@@ -1,4 +1,4 @@
-/* 
+ 
 
 import {
   Injectable,
@@ -89,9 +89,9 @@ export class MailerService {
 }
 
 
-*/
 
 
+/*
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { Resend } from 'resend';
 
@@ -158,3 +158,5 @@ export class MailerService {
     await this.sendMail(to, 'Reset your Password', html);
   }
 }
+
+*/
