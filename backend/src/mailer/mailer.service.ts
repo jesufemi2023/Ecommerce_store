@@ -1,3 +1,5 @@
+/* 
+
 import {
   Injectable,
   InternalServerErrorException,
@@ -83,5 +85,76 @@ export class MailerService {
     `;
 
     await this.sendMail(to, 'Reset your password', html);
+  }
+}
+
+
+*/
+
+
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Resend } from 'resend';
+
+@Injectable()
+export class MailerService {
+  private readonly logger = new Logger(MailerService.name);
+  private resend: Resend;
+
+  constructor() {
+    this.resend = new Resend(process.env.RESEND_API_KEY);
+  }
+
+  // -------------------------
+  // Central Email Sender (Resend API)
+  // -------------------------
+  private async sendMail(to: string, subject: string, html: string): Promise<void> {
+    try {
+      const response = await this.resend.emails.send({
+        from: process.env.MAIL_FROM || 'No Reply <noreply@yourdomain.com>',
+        to,
+        subject,
+        html,
+      });
+
+      this.logger.log(`✅ Email sent to ${to} | Subject: ${subject}`);
+      this.logger.debug(`Resend Response: ${JSON.stringify(response)}`);
+    } catch (error) {
+      this.logger.error(`❌ Resend failed for ${to}`, error);
+
+      throw new InternalServerErrorException(
+        'Failed to send email. Please try again later.',
+      );
+    }
+  }
+
+  // -------------------------
+  // Verification Email
+  // -------------------------
+  async sendVerificationEmail(to: string, token: string): Promise<void> {
+    const verificationLink = `${process.env.VERIFICATION_URL}?token=${token}`;
+
+    const html = `
+      <h1>Email Verification</h1>
+      <p>Click below to verify your email:</p>
+      <a href="${verificationLink}" target="_blank">${verificationLink}</a>
+    `;
+
+    await this.sendMail(to, 'Verify your Email', html);
+  }
+
+  // -------------------------
+  // Password Reset Email
+  // -------------------------
+  async sendPasswordResetEmail(to: string, token: string): Promise<void> {
+    const resetLink = `${process.env.RESET_PASSWORD_URL}?token=${token}`;
+
+    const html = `
+      <h1>Password Reset</h1>
+      <p>You asked to reset your password. Click below:</p>
+      <a href="${resetLink}" target="_blank">${resetLink}</a>
+      <p>If you did not request this, ignore this message.</p>
+    `;
+
+    await this.sendMail(to, 'Reset your Password', html);
   }
 }
