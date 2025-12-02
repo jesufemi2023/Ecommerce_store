@@ -40,7 +40,7 @@ import { PaymentModule } from './payment/payment.module';
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
       autoLoadEntities: true, // automatically load entities from modules
-      synchronize: process.env.NODE_ENV !== 'production',
+      synchronize: false, //process.env.NODE_ENV !== 'production',
     }),
 
     ThrottlerModule.forRootAsync({
