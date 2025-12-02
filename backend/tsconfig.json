@@ -22,7 +22,9 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
 
-    // 👇 Add this line
     "types": ["node", "express"]
-  }
+  },
+
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "test"]
 }
